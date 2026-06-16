@@ -1,0 +1,15 @@
+.git
+.venv
+.npm-cache
+node_modules
+web/node_modules
+web/.next
+web/out
+web_dist
+data
+*.db
+*.sqlite
+*.sqlite3
+__pycache__
+*.pyc
+
