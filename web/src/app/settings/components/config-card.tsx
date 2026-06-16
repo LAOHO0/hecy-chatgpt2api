@@ -38,12 +38,16 @@ export function ConfigCard() {
   const setGlobalSystemPrompt = useSettingsStore((state) => state.setGlobalSystemPrompt);
   const setSensitiveWordsText = useSettingsStore((state) => state.setSensitiveWordsText);
   const setAIReviewField = useSettingsStore((state) => state.setAIReviewField);
+  const setOpenAICompatibleUpstreamField = useSettingsStore((state) => state.setOpenAICompatibleUpstreamField);
+  const setOpenAICompatibleUpstreamModelsText = useSettingsStore((state) => state.setOpenAICompatibleUpstreamModelsText);
+  const setOpenAICompatibleUpstreamPrefixesText = useSettingsStore((state) => state.setOpenAICompatibleUpstreamPrefixesText);
   const setImageStorageField = useSettingsStore((state) => state.setImageStorageField);
   const testImageStorage = useSettingsStore((state) => state.testImageStorage);
   const syncImagesToWebDAV = useSettingsStore((state) => state.syncImagesToWebDAV);
   const isTestingImageStorage = useSettingsStore((state) => state.isTestingImageStorage);
   const isSyncingImageStorage = useSettingsStore((state) => state.isSyncingImageStorage);
   const saveConfig = useSettingsStore((state) => state.saveConfig);
+  const upstream = config?.openai_compatible_upstream;
 
   const handleTestProxy = async () => {
     const candidate = String(config?.proxy || "").trim();
@@ -388,6 +392,98 @@ export function ConfigCard() {
                   disabled={!config?.image_storage?.enabled}
                 />
                 <p className="text-xs text-stone-500">留空时返回本应用 /images/... 代理地址；填入后直接返回公开图片地址。</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-4 rounded-xl border border-stone-200 bg-white px-4 py-3 md:col-span-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex items-center gap-3 text-sm text-stone-700">
+                <Checkbox
+                  checked={Boolean(upstream?.enabled)}
+                  onCheckedChange={(checked) => setOpenAICompatibleUpstreamField("enabled", Boolean(checked))}
+                />
+                OpenAI 兼容上游 / NewAPI
+              </label>
+              <div className="flex flex-wrap gap-4 text-sm text-stone-700">
+                <label className="flex items-center gap-2">
+                  <Checkbox
+                    checked={Boolean(upstream?.proxy_models !== false)}
+                    onCheckedChange={(checked) => setOpenAICompatibleUpstreamField("proxy_models", Boolean(checked))}
+                  />
+                  Models
+                </label>
+                <label className="flex items-center gap-2">
+                  <Checkbox
+                    checked={Boolean(upstream?.proxy_chat !== false)}
+                    onCheckedChange={(checked) => setOpenAICompatibleUpstreamField("proxy_chat", Boolean(checked))}
+                  />
+                  Chat
+                </label>
+                <label className="flex items-center gap-2">
+                  <Checkbox
+                    checked={Boolean(upstream?.proxy_images)}
+                    onCheckedChange={(checked) => setOpenAICompatibleUpstreamField("proxy_images", Boolean(checked))}
+                  />
+                  Images
+                </label>
+                <label className="flex items-center gap-2">
+                  <Checkbox
+                    checked={Boolean(upstream?.proxy_responses)}
+                    onCheckedChange={(checked) => setOpenAICompatibleUpstreamField("proxy_responses", Boolean(checked))}
+                  />
+                  Responses
+                </label>
+              </div>
+            </div>
+            <p className="text-xs leading-6 text-stone-500">
+              启用后，匹配到的请求会由本服务用 NewAPI Key 转发到上游；客户端仍然使用本项目后台创建的 Key。
+            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm text-stone-700">Base URL</label>
+                <Input
+                  value={String(upstream?.base_url || "")}
+                  onChange={(event) => setOpenAICompatibleUpstreamField("base_url", event.target.value)}
+                  placeholder="https://newapi.example.com/v1"
+                  className="h-10 rounded-xl border-stone-200 bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-stone-700">Timeout</label>
+                <Input
+                  value={String(upstream?.timeout_sec || 120)}
+                  onChange={(event) => setOpenAICompatibleUpstreamField("timeout_sec", event.target.value)}
+                  placeholder="120"
+                  className="h-10 rounded-xl border-stone-200 bg-white"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-3">
+                <label className="text-sm text-stone-700">API Key</label>
+                <Input
+                  type="password"
+                  value={String(upstream?.api_key || "")}
+                  onChange={(event) => setOpenAICompatibleUpstreamField("api_key", event.target.value)}
+                  placeholder={upstream?.has_api_key ? "已保存，留空不修改" : "sk-..."}
+                  className="h-10 rounded-xl border-stone-200 bg-white"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-3">
+                <label className="text-sm text-stone-700">模型列表</label>
+                <Textarea
+                  value={(upstream?.models || []).join("\n")}
+                  onChange={(event) => setOpenAICompatibleUpstreamModelsText(event.target.value)}
+                  placeholder="一行一个；留空表示全部转发"
+                  className="min-h-24 rounded-xl border-stone-200 bg-white font-mono text-xs shadow-none"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-3">
+                <label className="text-sm text-stone-700">模型前缀</label>
+                <Textarea
+                  value={(upstream?.model_prefixes || []).join("\n")}
+                  onChange={(event) => setOpenAICompatibleUpstreamPrefixesText(event.target.value)}
+                  placeholder={"例如：\ngpt-\nclaude-"}
+                  className="min-h-24 rounded-xl border-stone-200 bg-white font-mono text-xs shadow-none"
+                />
               </div>
             </div>
           </div>

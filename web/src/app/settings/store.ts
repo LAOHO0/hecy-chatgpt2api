@@ -31,6 +31,7 @@ import {
   type CPARemoteFile,
   type ImageStorageMode,
   type ImageStorageSettings,
+  type OpenAICompatibleUpstreamSettings,
   type ProxyRuntimeClearanceMode,
   type ProxyRuntimeEgressMode,
   type ProxyRuntimeSettings,
@@ -72,6 +73,48 @@ const DEFAULT_THIRD_PARTY_APPS: ThirdPartyAppsSettings = {
     url: "https://canvas.best",
   },
 };
+
+const DEFAULT_OPENAI_COMPATIBLE_UPSTREAM: OpenAICompatibleUpstreamSettings = {
+  enabled: false,
+  base_url: "",
+  api_key: "",
+  has_api_key: false,
+  models: [],
+  model_prefixes: [],
+  proxy_models: true,
+  proxy_chat: true,
+  proxy_images: false,
+  proxy_responses: false,
+  timeout_sec: 120,
+};
+
+function normalizeStringList(value: unknown): string[] {
+  const items = typeof value === "string"
+    ? value.replaceAll(",", "\n").split("\n")
+    : Array.isArray(value)
+      ? value
+      : [];
+  return Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean)));
+}
+
+function normalizeOpenAICompatibleUpstream(value: unknown): OpenAICompatibleUpstreamSettings {
+  const source = typeof value === "object" && value !== null ? value as Partial<OpenAICompatibleUpstreamSettings> : {};
+  return {
+    ...DEFAULT_OPENAI_COMPATIBLE_UPSTREAM,
+    ...source,
+    enabled: Boolean(source.enabled),
+    base_url: String(source.base_url || ""),
+    api_key: String(source.api_key || ""),
+    has_api_key: Boolean(source.has_api_key),
+    models: normalizeStringList(source.models),
+    model_prefixes: normalizeStringList(source.model_prefixes),
+    proxy_models: source.proxy_models !== false,
+    proxy_chat: source.proxy_chat !== false,
+    proxy_images: Boolean(source.proxy_images),
+    proxy_responses: Boolean(source.proxy_responses),
+    timeout_sec: Number(source.timeout_sec || 120),
+  };
+}
 
 function normalizeProxyRuntime(value: unknown): ProxyRuntimeSettings {
   const source = typeof value === "object" && value !== null ? value as Partial<ProxyRuntimeSettings> : {};
@@ -196,6 +239,7 @@ function normalizeConfig(config: SettingsConfig): SettingsConfig {
       model: String(config.ai_review?.model || ""),
       prompt: String(config.ai_review?.prompt || ""),
     },
+    openai_compatible_upstream: normalizeOpenAICompatibleUpstream(config.openai_compatible_upstream),
     image_storage: {
       enabled: Boolean(imageStorage.enabled),
       mode: imageStorageMode,
@@ -314,6 +358,9 @@ type SettingsStore = {
   setGlobalSystemPrompt: (value: string) => void;
   setSensitiveWordsText: (value: string) => void;
   setAIReviewField: (key: "enabled" | "base_url" | "api_key" | "model" | "prompt", value: string | boolean) => void;
+  setOpenAICompatibleUpstreamField: <K extends keyof OpenAICompatibleUpstreamSettings>(key: K, value: OpenAICompatibleUpstreamSettings[K]) => void;
+  setOpenAICompatibleUpstreamModelsText: (value: string) => void;
+  setOpenAICompatibleUpstreamPrefixesText: (value: string) => void;
   setImageStorageField: (key: keyof ImageStorageSettings, value: string | boolean) => void;
   setProxyRuntimeField: <K extends keyof ProxyRuntimeSettings>(key: K, value: ProxyRuntimeSettings[K]) => void;
   setProxyRuntimeClearanceField: <K extends keyof ProxyRuntimeSettings["clearance"]>(key: K, value: ProxyRuntimeSettings["clearance"][K]) => void;
@@ -464,6 +511,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           api_key: String(config.ai_review?.api_key || "").trim(),
           model: String(config.ai_review?.model || "").trim(),
           prompt: String(config.ai_review?.prompt || "").trim(),
+        },
+        openai_compatible_upstream: {
+          ...normalizeOpenAICompatibleUpstream(config.openai_compatible_upstream),
+          enabled: Boolean(config.openai_compatible_upstream?.enabled),
+          base_url: String(config.openai_compatible_upstream?.base_url || "").trim(),
+          api_key: String(config.openai_compatible_upstream?.api_key || "").trim(),
+          has_api_key: Boolean(config.openai_compatible_upstream?.has_api_key),
+          models: normalizeStringList(config.openai_compatible_upstream?.models),
+          model_prefixes: normalizeStringList(config.openai_compatible_upstream?.model_prefixes),
+          proxy_models: config.openai_compatible_upstream?.proxy_models !== false,
+          proxy_chat: config.openai_compatible_upstream?.proxy_chat !== false,
+          proxy_images: Boolean(config.openai_compatible_upstream?.proxy_images),
+          proxy_responses: Boolean(config.openai_compatible_upstream?.proxy_responses),
+          timeout_sec: Math.max(1, Number(config.openai_compatible_upstream?.timeout_sec) || 120),
         },
         image_storage: {
           enabled: Boolean(config.image_storage?.enabled),
@@ -628,6 +689,48 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setAIReviewField: (key, value) => {
     set((state) => state.config ? { config: { ...state.config, ai_review: { ...(state.config.ai_review || {}), [key]: value } } } : {});
+  },
+
+  setOpenAICompatibleUpstreamField: (key, value) => {
+    set((state) => {
+      if (!state.config) {
+        return {};
+      }
+      const upstream = normalizeOpenAICompatibleUpstream(state.config.openai_compatible_upstream);
+      return {
+        config: {
+          ...state.config,
+          openai_compatible_upstream: {
+            ...upstream,
+            [key]: value,
+          },
+        },
+      };
+    });
+  },
+
+  setOpenAICompatibleUpstreamModelsText: (value) => {
+    set((state) => state.config ? {
+      config: {
+        ...state.config,
+        openai_compatible_upstream: {
+          ...normalizeOpenAICompatibleUpstream(state.config.openai_compatible_upstream),
+          models: normalizeStringList(value),
+        },
+      },
+    } : {});
+  },
+
+  setOpenAICompatibleUpstreamPrefixesText: (value) => {
+    set((state) => state.config ? {
+      config: {
+        ...state.config,
+        openai_compatible_upstream: {
+          ...normalizeOpenAICompatibleUpstream(state.config.openai_compatible_upstream),
+          model_prefixes: normalizeStringList(value),
+        },
+      },
+    } : {});
   },
 
   setImageStorageField: (key, value) => {

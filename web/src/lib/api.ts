@@ -152,6 +152,20 @@ export type ThirdPartyAppsSettings = {
   };
 };
 
+export type OpenAICompatibleUpstreamSettings = {
+  enabled: boolean;
+  base_url: string;
+  api_key: string;
+  has_api_key?: boolean;
+  models: string[];
+  model_prefixes: string[];
+  proxy_models: boolean;
+  proxy_chat: boolean;
+  proxy_images: boolean;
+  proxy_responses: boolean;
+  timeout_sec: number | string;
+};
+
 export type SettingsConfig = {
   proxy: string;
   base_url?: string;
@@ -164,6 +178,7 @@ export type SettingsConfig = {
     model?: string;
     prompt?: string;
   };
+  openai_compatible_upstream?: OpenAICompatibleUpstreamSettings;
   refresh_account_interval_minute?: number | string;
   image_retention_days?: number | string;
   image_poll_timeout_secs?: number | string;

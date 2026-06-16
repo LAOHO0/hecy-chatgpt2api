@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterator
 
+from services.openai_compatible_upstream import openai_compatible_upstream
 from services.protocol.conversation import (
     ConversationRequest,
     collect_image_outputs,
@@ -13,6 +14,10 @@ from utils.image_tokens import count_image_output_items_tokens, image_usage
 
 
 def handle(body: dict[str, Any]) -> dict[str, Any] | Iterator[dict[str, Any]]:
+    upstream_result = openai_compatible_upstream.image_generations(body)
+    if upstream_result is not None:
+        return upstream_result
+
     prompt = str(body.get("prompt") or "")
     model = str(body.get("model") or "gpt-image-2")
     n = int(body.get("n") or 1)

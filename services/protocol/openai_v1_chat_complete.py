@@ -6,6 +6,7 @@ from typing import Any, Iterable, Iterator
 
 from fastapi import HTTPException
 
+from services.openai_compatible_upstream import openai_compatible_upstream
 from services.protocol.chat_completion_cache import cache_key, chat_completion_cache, normalize_text_messages
 from services.protocol.conversation import (
     ConversationRequest,
@@ -260,6 +261,10 @@ def stream_image_chat_completion(image_outputs: Iterable[ImageOutput], model: st
 
 
 def handle(body: dict[str, Any]) -> dict[str, Any] | Iterator[dict[str, Any]]:
+    upstream_result = openai_compatible_upstream.chat_completions(body)
+    if upstream_result is not None:
+        return upstream_result
+
     if body.get("stream"):
         if is_image_chat_request(body):
             return image_chat_events(body)

@@ -51,6 +51,19 @@ DEFAULT_CHAT_COMPLETION_CACHE = {
     "drop_assistant_history": False,
 }
 
+DEFAULT_OPENAI_COMPATIBLE_UPSTREAM = {
+    "enabled": False,
+    "base_url": "",
+    "api_key": "",
+    "models": [],
+    "model_prefixes": [],
+    "proxy_models": True,
+    "proxy_chat": True,
+    "proxy_images": False,
+    "proxy_responses": False,
+    "timeout_sec": 120,
+}
+
 DEFAULT_PROXY_RUNTIME_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -105,6 +118,21 @@ def _normalize_positive_int(value: object, default: int, minimum: int = 0) -> in
     except (OverflowError, TypeError, ValueError):
         normalized = default
     return max(minimum, normalized)
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        items = value.replace(",", "\n").splitlines()
+    elif isinstance(value, list):
+        items = value
+    else:
+        items = []
+    normalized: list[str] = []
+    for item in items:
+        text = str(item or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
 
 
 def _normalize_backup_include(value: object) -> dict[str, bool]:
@@ -197,6 +225,30 @@ def _normalize_chat_completion_cache_settings(value: object) -> dict[str, object
         "drop_assistant_history": _normalize_bool(
             source.get("drop_assistant_history"),
             bool(DEFAULT_CHAT_COMPLETION_CACHE["drop_assistant_history"]),
+        ),
+    }
+
+
+def _normalize_openai_compatible_upstream_settings(value: object) -> dict[str, object]:
+    source = value if isinstance(value, dict) else {}
+    existing_api_key = str(source.get("_existing_api_key") or "").strip()
+    api_key = str(source.get("api_key") or "").strip()
+    if not api_key and _normalize_bool(source.get("has_api_key"), False):
+        api_key = existing_api_key
+    return {
+        "enabled": _normalize_bool(source.get("enabled"), bool(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["enabled"])),
+        "base_url": str(source.get("base_url") or "").strip().rstrip("/"),
+        "api_key": api_key,
+        "models": _normalize_string_list(source.get("models")),
+        "model_prefixes": _normalize_string_list(source.get("model_prefixes")),
+        "proxy_models": _normalize_bool(source.get("proxy_models"), bool(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["proxy_models"])),
+        "proxy_chat": _normalize_bool(source.get("proxy_chat"), bool(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["proxy_chat"])),
+        "proxy_images": _normalize_bool(source.get("proxy_images"), bool(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["proxy_images"])),
+        "proxy_responses": _normalize_bool(source.get("proxy_responses"), bool(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["proxy_responses"])),
+        "timeout_sec": _normalize_positive_int(
+            source.get("timeout_sec"),
+            int(DEFAULT_OPENAI_COMPATIBLE_UPSTREAM["timeout_sec"]),
+            1,
         ),
     }
 
@@ -580,6 +632,7 @@ class ConfigStore:
         data["backup"] = self.get_backup_settings()
         data["image_storage"] = self.get_image_storage_settings()
         data["chat_completion_cache"] = self.get_chat_completion_cache_settings()
+        data["openai_compatible_upstream"] = self.get_public_openai_compatible_upstream_settings()
         data["proxy_runtime"] = self.get_public_proxy_runtime_settings()
         data["third_party_apps"] = self.get_third_party_apps_settings()
         data.pop("auth-key", None)
@@ -619,6 +672,12 @@ class ConfigStore:
             next_data["chat_completion_cache"] = _normalize_chat_completion_cache_settings(
                 next_data.get("chat_completion_cache")
             )
+        if "openai_compatible_upstream" in next_data:
+            incoming_upstream = next_data.get("openai_compatible_upstream")
+            if isinstance(incoming_upstream, dict):
+                incoming_upstream = dict(incoming_upstream)
+                incoming_upstream["_existing_api_key"] = self.get_openai_compatible_upstream_settings().get("api_key")
+            next_data["openai_compatible_upstream"] = _normalize_openai_compatible_upstream_settings(incoming_upstream)
         if "third_party_apps" in next_data:
             next_data["third_party_apps"] = _normalize_third_party_apps_settings(next_data.get("third_party_apps"))
         if "proxy_runtime" in next_data:
@@ -644,6 +703,16 @@ class ConfigStore:
 
     def get_chat_completion_cache_settings(self) -> dict[str, object]:
         return _normalize_chat_completion_cache_settings(self.data.get("chat_completion_cache"))
+
+    def get_openai_compatible_upstream_settings(self) -> dict[str, object]:
+        return _normalize_openai_compatible_upstream_settings(self.data.get("openai_compatible_upstream"))
+
+    def get_public_openai_compatible_upstream_settings(self) -> dict[str, object]:
+        upstream = copy.deepcopy(self.get_openai_compatible_upstream_settings())
+        api_key = str(upstream.get("api_key") or "").strip()
+        upstream["api_key"] = ""
+        upstream["has_api_key"] = bool(api_key)
+        return upstream
 
     def get_storage_backend(self) -> StorageBackend:
         """获取存储后端实例（单例）"""

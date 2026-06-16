@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from services.account_service import account_service
+from services.openai_compatible_upstream import openai_compatible_upstream
 from services.openai_backend_api import OpenAIBackendAPI
 from utils.helper import CODEX_IMAGE_MODEL
 
@@ -50,4 +51,15 @@ def list_models() -> dict[str, Any]:
                 "root": model,
                 "parent": None,
             })
+            seen.add(model)
+    upstream_result = openai_compatible_upstream.list_models()
+    upstream_data = upstream_result.get("data") if isinstance(upstream_result, dict) else None
+    if isinstance(upstream_data, list):
+        for item in upstream_data:
+            if not isinstance(item, dict):
+                continue
+            model_id = str(item.get("id") or "").strip()
+            if model_id and model_id not in seen:
+                data.append(item)
+                seen.add(model_id)
     return result
