@@ -11,10 +11,12 @@ import time
 from services.storage.base import StorageBackend
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = BASE_DIR / "data"
-CONFIG_FILE = BASE_DIR / "config.json"
+IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("NOW_REGION"))
+DATA_DIR = Path(os.getenv("DATA_DIR") or ("/tmp/chatgpt2api" if IS_VERCEL else BASE_DIR / "data"))
+CONFIG_FILE = Path(os.getenv("CONFIG_FILE") or (DATA_DIR / "config.json" if IS_VERCEL else BASE_DIR / "config.json"))
 VERSION_FILE = BASE_DIR / "VERSION"
 BACKUP_STATE_FILE = DATA_DIR / "backup_state.json"
+CONFIG_STATE_KEY = "config"
 
 DEFAULT_BACKUP_INCLUDE = {
     "config": True,
@@ -368,7 +370,26 @@ class ConfigStore:
         return _read_json_object(self.path, name="config.json")
 
     def _save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    def _load_persistent_data(self) -> dict[str, object]:
+        try:
+            stored = self.get_storage_backend().load_state(CONFIG_STATE_KEY, {})
+        except Exception:
+            return {}
+        return stored if isinstance(stored, dict) else {}
+
+    def _reload_persistent_data(self) -> None:
+        stored = self._load_persistent_data()
+        if stored:
+            self.data = {**self.data, **stored}
+
+    def _save_persistent_data(self) -> None:
+        try:
+            self.get_storage_backend().save_state(CONFIG_STATE_KEY, self.data)
+        except Exception as exc:
+            print(f"[config] persistent save skipped: {exc}")
 
     @property
     def auth_key(self) -> str:
@@ -540,6 +561,7 @@ class ConfigStore:
         return value or "0.0.0"
 
     def get(self) -> dict[str, object]:
+        self._reload_persistent_data()
         data = dict(self.data)
         data["refresh_account_interval_minute"] = self.refresh_account_interval_minute
         data["image_retention_days"] = self.image_retention_days
@@ -585,6 +607,7 @@ class ConfigStore:
         return _normalize_third_party_apps_settings(self.data.get("third_party_apps"))
 
     def update(self, data: dict[str, object]) -> dict[str, object]:
+        self._reload_persistent_data()
         next_data = dict(self.data)
         next_data.update(dict(data or {}))
         if "backup" in next_data:
@@ -610,6 +633,7 @@ class ConfigStore:
         next_data.pop("backup_state", None)
         self.data = next_data
         self._save()
+        self._save_persistent_data()
         return self.get()
 
     def get_backup_settings(self) -> dict[str, object]:

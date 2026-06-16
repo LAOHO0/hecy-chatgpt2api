@@ -14,13 +14,14 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from services.config import DATA_DIR
+from services.config import DATA_DIR, config
 from services.protocol.error_response import anthropic_error_response, openai_error_response
 from utils.helper import anthropic_sse_stream, sse_json_stream
 
 LOG_TYPE_CALL = "call"
 LOG_TYPE_ACCOUNT = "account"
 INTERNAL_RESPONSE_KEYS = {"_account_email", "_conversation_id"}
+LOG_STATE_KEY = "logs"
 
 
 class LogService:
@@ -60,6 +61,20 @@ class LogService:
             return False
         return True
 
+    def _load_state_items(self) -> list[dict[str, Any]] | None:
+        try:
+            items = config.get_storage_backend().load_state(LOG_STATE_KEY, [])
+        except Exception:
+            return None
+        return items if isinstance(items, list) else None
+
+    def _save_state_items(self, items: list[dict[str, Any]]) -> bool:
+        try:
+            config.get_storage_backend().save_state(LOG_STATE_KEY, items[-1000:])
+            return True
+        except Exception:
+            return False
+
     def add(self, type: str, summary: str = "", detail: dict[str, Any] | None = None, **data: Any) -> None:
         item = {
             "id": uuid4().hex,
@@ -68,10 +83,21 @@ class LogService:
             "summary": summary,
             "detail": detail or data,
         }
+        state_items = self._load_state_items()
+        if state_items is not None and self._save_state_items([*state_items, item]):
+            return
         with self.path.open("a", encoding="utf-8") as file:
             file.write(self._serialize_item(item) + "\n")
 
     def list(self, type: str = "", start_date: str = "", end_date: str = "", limit: int = 200) -> list[dict[str, Any]]:
+        state_items = self._load_state_items()
+        if state_items is not None:
+            items = [
+                item
+                for item in reversed(state_items)
+                if isinstance(item, dict) and self._matches_filters(item, type=type, start_date=start_date, end_date=end_date)
+            ]
+            return items[:limit]
         if not self.path.exists():
             return []
         items: list[dict[str, Any]] = []
@@ -89,6 +115,13 @@ class LogService:
 
     def delete(self, ids: list[str]) -> dict[str, int]:
         target_ids = {str(item or "").strip() for item in ids if str(item or "").strip()}
+        state_items = self._load_state_items()
+        if state_items is not None:
+            kept = [item for item in state_items if str(item.get("id") or "") not in target_ids]
+            removed = len(state_items) - len(kept)
+            if removed:
+                self._save_state_items(kept)
+            return {"removed": removed}
         if not self.path.exists() or not target_ids:
             return {"removed": 0}
         lines = self.path.read_text(encoding="utf-8").splitlines()

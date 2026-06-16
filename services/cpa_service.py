@@ -13,11 +13,12 @@ from threading import Lock
 from curl_cffi.requests import Session
 
 from services.account_service import account_service
-from services.config import DATA_DIR
+from services.config import DATA_DIR, config
 from services.proxy_service import proxy_settings
 
 
 CPA_CONFIG_FILE = DATA_DIR / "cpa_config.json"
+CPA_STATE_KEY = "cpa_config"
 
 
 def _new_id() -> str:
@@ -73,6 +74,15 @@ class CPAConfig:
         self._pools: list[dict] = self._load()
 
     def _load(self) -> list[dict]:
+        try:
+            state = config.get_storage_backend().load_state(CPA_STATE_KEY, None)
+        except Exception:
+            state = None
+        if isinstance(state, dict) and "base_url" in state:
+            pool = _normalize_pool(state)
+            return [pool] if pool["base_url"] else []
+        if isinstance(state, list):
+            return [_normalize_pool(item) for item in state if isinstance(item, dict)]
         if not self._store_file.exists():
             return []
         try:
@@ -87,6 +97,11 @@ class CPAConfig:
         return []
 
     def _save(self) -> None:
+        try:
+            config.get_storage_backend().save_state(CPA_STATE_KEY, self._pools)
+            return
+        except Exception:
+            pass
         self._store_file.parent.mkdir(parents=True, exist_ok=True)
         self._store_file.write_text(json.dumps(self._pools, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

@@ -17,6 +17,19 @@
 
 ## 快速开始
 
+### Vercel 部署
+
+本仓库已增加 Vercel 适配，保留在线聊天、生图页面、后台管理 API 和 `/v1/*` OpenAI 兼容接口。部署前请配置外部数据库：
+
+```bash
+CHATGPT2API_AUTH_KEY=your_admin_key
+STORAGE_BACKEND=postgres
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+CHATGPT2API_BASE_URL=https://your-app.vercel.app
+```
+
+详细说明见 [Vercel 部署说明](./docs/vercel.md)。
+
 ### Docker 运行
 
 ```bash

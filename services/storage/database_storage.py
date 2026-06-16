@@ -30,6 +30,14 @@ class AuthKeyModel(Base):
     data = Column(Text, nullable=False)
 
 
+class StateModel(Base):
+    """通用应用状态数据模型"""
+    __tablename__ = "app_state"
+
+    key = Column(String(255), primary_key=True)
+    data = Column(Text, nullable=False)
+
+
 class DatabaseStorageBackend(StorageBackend):
     """数据库存储后端（支持 SQLite、PostgreSQL、MySQL 等）"""
 
@@ -70,6 +78,45 @@ class DatabaseStorageBackend(StorageBackend):
     def save_auth_keys(self, auth_keys: list[dict[str, Any]]) -> None:
         """保存鉴权密钥数据到数据库"""
         self._save_rows(AuthKeyModel, auth_keys, "id", "key_id")
+
+    def load_state(self, key: str, default: Any = None) -> Any:
+        session = self.Session()
+        try:
+            row = session.query(StateModel).filter(StateModel.key == key).one_or_none()
+            if row is None:
+                return default
+            return json.loads(row.data)
+        except Exception:
+            return default
+        finally:
+            session.close()
+
+    def save_state(self, key: str, value: Any) -> None:
+        session = self.Session()
+        try:
+            payload = json.dumps(value, ensure_ascii=False)
+            row = session.query(StateModel).filter(StateModel.key == key).one_or_none()
+            if row is None:
+                session.add(StateModel(key=key, data=payload))
+            else:
+                row.data = payload
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def delete_state(self, key: str) -> None:
+        session = self.Session()
+        try:
+            session.query(StateModel).filter(StateModel.key == key).delete()
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
 
     def _load_rows(self, model: type[AccountModel] | type[AuthKeyModel]) -> list[dict[str, Any]]:
         session = self.Session()
@@ -124,12 +171,14 @@ class DatabaseStorageBackend(StorageBackend):
                 session.execute(text("SELECT 1"))
                 count = session.query(AccountModel).count()
                 auth_key_count = session.query(AuthKeyModel).count()
+                state_count = session.query(StateModel).count()
                 return {
                     "status": "healthy",
                     "backend": "database",
                     "database_url": self._mask_password(self.database_url),
                     "account_count": count,
                     "auth_key_count": auth_key_count,
+                    "state_count": state_count,
                 }
             finally:
                 session.close()

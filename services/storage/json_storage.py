@@ -62,6 +62,29 @@ class JSONStorageBackend(StorageBackend):
             encoding="utf-8",
         )
 
+    def _state_path(self, key: str) -> Path:
+        safe_key = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in key)
+        return self.file_path.parent / f"state_{safe_key}.json"
+
+    def load_state(self, key: str, default: Any = None) -> Any:
+        path = self._state_path(key)
+        if not path.exists():
+            return default
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return default
+
+    def save_state(self, key: str, value: Any) -> None:
+        path = self._state_path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    def delete_state(self, key: str) -> None:
+        path = self._state_path(key)
+        if path.exists():
+            path.unlink()
+
     def health_check(self) -> dict[str, Any]:
         """健康检查"""
         try:

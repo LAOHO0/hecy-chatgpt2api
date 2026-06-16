@@ -1,0 +1,9 @@
+{
+  "name": "chatgpt2api-vercel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix web install --cache .npm-cache && npm --prefix web run build && node scripts/copy-web-dist.mjs",
+    "dev:web": "npm --prefix web run dev"
+  }
+}

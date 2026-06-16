@@ -27,6 +27,15 @@ class StorageBackend(ABC):
         """保存所有鉴权密钥数据"""
         pass
 
+    def load_state(self, key: str, default: Any = None) -> Any:
+        return default
+
+    def save_state(self, key: str, value: Any) -> None:
+        raise NotImplementedError("state storage is not supported by this backend")
+
+    def delete_state(self, key: str) -> None:
+        raise NotImplementedError("state storage is not supported by this backend")
+
     @abstractmethod
     def health_check(self) -> dict[str, Any]:
         """健康检查，返回存储后端状态"""

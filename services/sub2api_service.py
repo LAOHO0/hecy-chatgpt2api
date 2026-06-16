@@ -14,10 +14,11 @@ from threading import Lock
 from curl_cffi.requests import Session
 
 from services.account_service import account_service
-from services.config import DATA_DIR
+from services.config import DATA_DIR, config
 
 
 SUB2API_CONFIG_FILE = DATA_DIR / "sub2api_config.json"
+SUB2API_STATE_KEY = "sub2api_config"
 
 # Cached JWT per server to avoid re-login on every list/import call.
 # Token lifetime on sub2api defaults to 24h; we refresh 5 min before expiry.
@@ -77,6 +78,12 @@ class Sub2APIConfig:
         self._servers: list[dict] = self._load()
 
     def _load(self) -> list[dict]:
+        try:
+            state = config.get_storage_backend().load_state(SUB2API_STATE_KEY, None)
+        except Exception:
+            state = None
+        if isinstance(state, list):
+            return [_normalize_server(item) for item in state if isinstance(item, dict)]
         if not self._store_file.exists():
             return []
         try:
@@ -88,6 +95,11 @@ class Sub2APIConfig:
         return []
 
     def _save(self) -> None:
+        try:
+            config.get_storage_backend().save_state(SUB2API_STATE_KEY, self._servers)
+            return
+        except Exception:
+            pass
         self._store_file.parent.mkdir(parents=True, exist_ok=True)
         self._store_file.write_text(
             json.dumps(self._servers, ensure_ascii=False, indent=2) + "\n",

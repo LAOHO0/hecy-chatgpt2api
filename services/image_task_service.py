@@ -19,6 +19,7 @@ TASK_STATUS_SUCCESS = "success"
 TASK_STATUS_ERROR = "error"
 TERMINAL_STATUSES = {TASK_STATUS_SUCCESS, TASK_STATUS_ERROR}
 UNFINISHED_STATUSES = {TASK_STATUS_QUEUED, TASK_STATUS_RUNNING}
+IMAGE_TASK_STATE_KEY = "image_tasks"
 
 
 def _now_iso() -> str:
@@ -357,12 +358,21 @@ class ImageTaskService:
             self._save_locked()
 
     def _load_locked(self) -> dict[str, dict[str, Any]]:
+        try:
+            raw = config.get_storage_backend().load_state(IMAGE_TASK_STATE_KEY, None)
+        except Exception:
+            raw = None
+        if isinstance(raw, dict) or isinstance(raw, list):
+            return self._parse_tasks(raw)
         if not self.path.exists():
             return {}
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
         except Exception:
             return {}
+        return self._parse_tasks(raw)
+
+    def _parse_tasks(self, raw: object) -> dict[str, dict[str, Any]]:
         raw_items = raw.get("tasks") if isinstance(raw, dict) else raw
         if not isinstance(raw_items, list):
             return {}
@@ -406,6 +416,11 @@ class ImageTaskService:
 
     def _save_locked(self) -> None:
         items = sorted(self._tasks.values(), key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+        try:
+            config.get_storage_backend().save_state(IMAGE_TASK_STATE_KEY, {"tasks": items[:1000]})
+            return
+        except Exception:
+            pass
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")
         tmp_path.write_text(json.dumps({"tasks": items}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         tmp_path.replace(self.path)

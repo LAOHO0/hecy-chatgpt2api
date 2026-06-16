@@ -9,11 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from services.account_service import account_service
-from services.config import DATA_DIR
+from services.config import DATA_DIR, config
 from services.register import mail_provider, openai_register
 
 
 REGISTER_FILE = DATA_DIR / "register.json"
+REGISTER_STATE_KEY = "register_config"
 
 
 def _serialize_outlook_pool(credentials: list[dict]) -> str:
@@ -72,11 +73,22 @@ class RegisterService:
 
     def _load(self) -> dict:
         try:
+            state = config.get_storage_backend().load_state(REGISTER_STATE_KEY, None)
+        except Exception:
+            state = None
+        if isinstance(state, dict):
+            return _normalize(state)
+        try:
             return _normalize(json.loads(self._store_file.read_text(encoding="utf-8")))
         except Exception:
             return _normalize({})
 
     def _save(self) -> None:
+        try:
+            config.get_storage_backend().save_state(REGISTER_STATE_KEY, self._config)
+            return
+        except Exception:
+            pass
         self._store_file.parent.mkdir(parents=True, exist_ok=True)
         self._store_file.write_text(json.dumps(self._config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
