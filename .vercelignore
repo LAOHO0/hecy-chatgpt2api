@@ -6,10 +6,11 @@ web/node_modules
 web/.next
 web/out
 web_dist
+pyproject.toml
+uv.lock
 data
 *.db
 *.sqlite
 *.sqlite3
 __pycache__
 *.pyc
-
