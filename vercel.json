@@ -4,7 +4,8 @@
   "outputDirectory": "web_dist",
   "functions": {
     "api/index.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "excludeFiles": "{web/**,web_dist/**,test/**,docs/**,scripts/**,.npm-cache/**,node_modules/**,*.lock,*.md}"
     }
   },
   "rewrites": [
@@ -42,4 +43,3 @@
     }
   ]
 }
-
